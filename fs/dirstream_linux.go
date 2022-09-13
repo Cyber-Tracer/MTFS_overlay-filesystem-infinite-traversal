@@ -31,6 +31,8 @@ type loopbackDirStream struct {
 	mu sync.Mutex
 	//fd = file descriptor
 	fd int
+
+	fake bool
 }
 
 // NewLoopbackDirStream open a directory for reading as a DirStream
@@ -44,8 +46,9 @@ func NewLoopbackDirStream(name string) (DirStream, syscall.Errno) {
 		// make creates a slice of size 4096, with value unit8, slice == array!
 		// this is used to call getDetns, but how many entries can the buffer hold, 4096?? TODO
 		// we can just assume MAX ---. ? What do you think?
-		buf: make([]byte, 4096),
-		fd:  fd,
+		buf:  make([]byte, 4096),
+		fd:   fd,
+		fake: true,
 	}
 
 	if err := ds.load(); err != 0 {
@@ -84,6 +87,17 @@ type dirent struct {
 func (ds *loopbackDirStream) Next() (fuse.DirEntry, syscall.Errno) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
+
+	if ds.fake == true {
+		fakeResult := fuse.DirEntry{
+			Ino:  uint64(24000),
+			Mode: fuse.S_IFDIR,
+			Name: "fake",
+		}
+
+		ds.fake = false
+		return fakeResult, OK
+	}
 
 	// We can't use syscall.Dirent here, because it declares a
 	// [256]byte name, which may run beyond the end of ds.todo.
