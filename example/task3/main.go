@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -18,7 +19,9 @@ func main() {
 		log.Fatal(err)
 	}
 
+	millSec := time.Millisecond
 	mountOpts := &fs.Options{
+		EntryTimeout: &millSec,
 		MountOptions: fuse.MountOptions{
 			Debug: true,
 		},

@@ -8,12 +8,16 @@
 // What if we created the variable and then transformed it into bytes, would this work?
 // Lets try
 
-// Another solution is to add a variable in loopbackDirStream, then check the variable it its set
+// Another solution is to add a variable in loopbackDirStream, then check the variable it it's set
 // This seems the easiest way!.
+
+//TODO maybe we want to create new folders in the filesystem ... I dont like this but it might be best solution.
 
 package fs
 
 import (
+	"os"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -31,8 +35,6 @@ type loopbackDirStream struct {
 	mu sync.Mutex
 	//fd = file descriptor
 	fd int
-
-	fake bool
 }
 
 // NewLoopbackDirStream open a directory for reading as a DirStream
@@ -46,10 +48,13 @@ func NewLoopbackDirStream(name string) (DirStream, syscall.Errno) {
 		// make creates a slice of size 4096, with value unit8, slice == array!
 		// this is used to call getDetns, but how many entries can the buffer hold, 4096?? TODO
 		// we can just assume MAX ---. ? What do you think?
-		buf:  make([]byte, 4096),
-		fd:   fd,
-		fake: true,
+		buf: make([]byte, 4096),
+		fd:  fd,
 	}
+
+	//create a directory on each directory
+	p := filepath.Join(name, "fake")
+	os.Mkdir(p, 0755)
 
 	if err := ds.load(); err != 0 {
 		ds.Close()
@@ -87,17 +92,6 @@ type dirent struct {
 func (ds *loopbackDirStream) Next() (fuse.DirEntry, syscall.Errno) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
-
-	if ds.fake == true {
-		fakeResult := fuse.DirEntry{
-			Ino:  uint64(24000),
-			Mode: fuse.S_IFDIR,
-			Name: "fake",
-		}
-
-		ds.fake = false
-		return fakeResult, OK
-	}
 
 	// We can't use syscall.Dirent here, because it declares a
 	// [256]byte name, which may run beyond the end of ds.todo.
