@@ -1,34 +1,32 @@
 package main
 
 import (
+	"io/ioutil"
 	"log"
 	"os"
-	"time"
 
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 )
 
 func main() {
-	home := os.Getenv("HOME")
 
-	// Make $HOME available on a mount dir under /tmp/ . Caution:
-	// write operations are also mirrored.
-	root, err := fs.NewLoopbackRoot(home)
+	home := os.Getenv("HOME")
+	mntDir, _ := ioutil.TempDir("", "")
+
+	root, err := fs.NewLoopbackRoot(mntDir)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	millSec := time.Millisecond
 	mountOpts := &fs.Options{
-		EntryTimeout: &millSec,
 		MountOptions: fuse.MountOptions{
 			Debug: true,
 		},
 	}
 
 	// Mount the file system
-	server, err := fs.Mount(".", root, mountOpts)
+	server, err := fs.Mount(home+"/Desktop", root, mountOpts)
 	if err != nil {
 		log.Fatal(err)
 	}
