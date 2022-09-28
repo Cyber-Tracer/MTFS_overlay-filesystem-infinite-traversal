@@ -2,22 +2,12 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//TODO 1, attack at the beginning a fake directory through
-//TODO 1.1, how to calculate reclen
-// d_reclen is the size (in bytes) of the returned record)
-// What if we created the variable and then transformed it into bytes, would this work?
-// Lets try
-
-// Another solution is to add a variable in loopbackDirStream, then check the variable it it's set
-// This seems the easiest way!.
-
-//TODO maybe we want to create new folders in the filesystem ... I dont like this but it might be best solution.
-
 package fs
 
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -26,14 +16,13 @@ import (
 )
 
 type loopbackDirStream struct {
-	//array of uint8
-	buf []byte
-	//array of uint8
+	buf  []byte
 	todo []byte
+
+	dirList []fuse.DirEntry
 
 	// Protects fd so we can guard against double close
 	mu sync.Mutex
-	//fd = file descriptor
 	fd int
 }
 
@@ -45,15 +34,15 @@ func NewLoopbackDirStream(name string) (DirStream, syscall.Errno) {
 	}
 
 	ds := &loopbackDirStream{
-		// make creates a slice of size 4096, with value unit8, slice == array!
-		// this is used to call getDetns, but how many entries can the buffer hold, 4096?? TODO
-		// we can just assume MAX ---. ? What do you think?
-		buf: make([]byte, 4096),
-		fd:  fd,
+		buf:     make([]byte, 4096),
+		fd:      fd,
+		dirList: make([]fuse.DirEntry, 0),
 	}
 
 	//create a directory on each directory
-	p := filepath.Join(name, "fake")
+	//" " is first char sorted ASCII Sort Order
+	// "!" is the second ch sorted ASCII Sort Order
+	p := filepath.Join(name, "!")
 	os.Mkdir(p, 0755)
 
 	if err := ds.load(); err != 0 {
@@ -75,7 +64,7 @@ func (ds *loopbackDirStream) Close() {
 func (ds *loopbackDirStream) HasNext() bool {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
-	return len(ds.todo) > 0
+	return len(ds.dirList) > 0
 }
 
 // Like syscall.Dirent, but without the [256]byte name.
@@ -88,52 +77,42 @@ type dirent struct {
 	Name   [1]uint8 // filename, (reclen - 2 - offsetof(direct,name)
 }
 
-// it is trying to return a dirEntry, it kinda uses some unsafe thigns race detector
 func (ds *loopbackDirStream) Next() (fuse.DirEntry, syscall.Errno) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
-	// We can't use syscall.Dirent here, because it declares a
-	// [256]byte name, which may run beyond the end of ds.todo.
-	// when that happens in the race detector, it causes a panic
-	// "converted pointer straddles multiple allocations"
-
-	//ds.todo[0] returns the first entry
-	//it does smth with safety wich I dont understand
-	// It says that the thing I am returning is a dirent type ?
-	// & is the address
-	// * retrives the variable
-	// Getting the first byte section.
-	de := (*dirent)(unsafe.Pointer(&ds.todo[0]))
-
-	// getting the byte where the name should be stored .
-	nameBytes := ds.todo[unsafe.Offsetof(dirent{}.Name):de.Reclen]
-
-	//sets where the new directory should occur, removes the directory, as it has already processed so the start now starts from de.Reclen till end!
-	ds.todo = ds.todo[de.Reclen:]
-
-	// After the loop, l contains the index of the first '\0'.
-	// I think it loops until it gets to 0/ meaning at 0/ is the name.
-	l := 0
-	for l = range nameBytes {
-		if nameBytes[l] == 0 {
-			break
-		}
-	}
-	nameBytes = nameBytes[:l]
-	result := fuse.DirEntry{
-		Ino:  de.Ino,
-		Mode: (uint32(de.Type) << 12),
-		Name: string(nameBytes),
-	}
+	result := ds.dirList[0]
+	ds.dirList = ds.dirList[1:]
 	return result, ds.load()
+}
+
+func (ds *loopbackDirStream) createDirList() {
+	for len(ds.todo) > 0 {
+		de := (*dirent)(unsafe.Pointer(&ds.todo[0]))
+		nameBytes := ds.todo[unsafe.Offsetof(dirent{}.Name):de.Reclen]
+		ds.todo = ds.todo[de.Reclen:]
+		l := 0
+		for l = range nameBytes {
+			if nameBytes[l] == 0 {
+				break
+			}
+		}
+		nameBytes = nameBytes[:l]
+		result := fuse.DirEntry{
+			Ino:  de.Ino,
+			Mode: (uint32(de.Type) << 12),
+			Name: string(nameBytes),
+		}
+		ds.dirList = append(ds.dirList, result)
+	}
+	sort.Slice(ds.dirList, func(i, j int) bool {
+		return ds.dirList[i].Name < ds.dirList[j].Name
+	})
 }
 
 // if it has more than one element it returns ok, else is gets the new elements
 func (ds *loopbackDirStream) load() syscall.Errno {
-	// if it has elements dont touch it, return OK
-	// it checks how many elements does todo has, if it has more than 0 returns OK,
-	if len(ds.todo) > 0 {
+	if len(ds.dirList) > 0 {
 		return OK
 	}
 
@@ -167,8 +146,8 @@ func (ds *loopbackDirStream) load() syscall.Errno {
 		return ToErrno(err)
 	}
 
-	// So here because we have a buffer of 4096, but not everytime all will be filled by getDents
-	// so buf says the read bytes are from X to Y, so from 0 to n, where N is how many bites the getDent returned
 	ds.todo = ds.buf[:n]
+	ds.createDirList()
+
 	return OK
 }
