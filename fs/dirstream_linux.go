@@ -15,6 +15,7 @@ import (
 	"github.com/hanwen/go-fuse/v2/fuse"
 )
 
+// Modified by @RinorSefa
 type loopbackDirStream struct {
 	buf  []byte
 	todo []byte
@@ -26,6 +27,7 @@ type loopbackDirStream struct {
 	fd int
 }
 
+//// Modified by @RinorSefa
 // NewLoopbackDirStream open a directory for reading as a DirStream
 func NewLoopbackDirStream(name string) (DirStream, syscall.Errno) {
 	fd, err := syscall.Open(name, syscall.O_DIRECTORY, 0755)
@@ -52,6 +54,7 @@ func NewLoopbackDirStream(name string) (DirStream, syscall.Errno) {
 	return ds, OK
 }
 
+//// Modified by @RinorSefa
 func (ds *loopbackDirStream) Close() {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
@@ -61,6 +64,7 @@ func (ds *loopbackDirStream) Close() {
 	}
 }
 
+//// Modified by @RinorSefa
 func (ds *loopbackDirStream) HasNext() bool {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
@@ -77,6 +81,7 @@ type dirent struct {
 	Name   [1]uint8 // filename, (reclen - 2 - offsetof(direct,name)
 }
 
+// Modified by @RinorSefa
 func (ds *loopbackDirStream) Next() (fuse.DirEntry, syscall.Errno) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
@@ -86,6 +91,7 @@ func (ds *loopbackDirStream) Next() (fuse.DirEntry, syscall.Errno) {
 	return result, ds.load()
 }
 
+// Author @RinorSefa
 func (ds *loopbackDirStream) createDirList() {
 	for len(ds.todo) > 0 {
 		de := (*dirent)(unsafe.Pointer(&ds.todo[0]))
@@ -110,6 +116,7 @@ func (ds *loopbackDirStream) createDirList() {
 	})
 }
 
+// Modified by @RinorSefa
 // if it has more than one element it returns ok, else is gets the new elements
 func (ds *loopbackDirStream) load() syscall.Errno {
 	if len(ds.dirList) > 0 {
