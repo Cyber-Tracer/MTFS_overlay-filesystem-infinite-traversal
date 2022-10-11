@@ -21,7 +21,8 @@ func main() {
 
 	mountOpts := &fs.Options{
 		MountOptions: fuse.MountOptions{
-			Debug: true,
+			Debug:      true,
+			AllowOther: true,
 		},
 	}
 
