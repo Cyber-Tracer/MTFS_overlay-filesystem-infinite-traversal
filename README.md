@@ -17,3 +17,8 @@ $ go run main.go
 
 - cmd/infiniteDirectory/main.go (author)
 - fs/dirstream_linux.go (modifying each method, the original structure was maintained)
+
+To unmount the filesystem 
+```
+$ fusermount -u mountPath
+```
