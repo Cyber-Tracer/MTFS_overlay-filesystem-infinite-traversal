@@ -27,7 +27,7 @@ func main() {
 	}
 
 	// Mount the file system
-	server, err := fs.Mount(home+"/Desktop", root, mountOpts)
+	server, err := fs.Mount(home+"/!", root, mountOpts)
 	if err != nil {
 		log.Fatal(err)
 	}
