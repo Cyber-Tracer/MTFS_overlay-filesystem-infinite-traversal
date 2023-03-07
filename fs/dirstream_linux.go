@@ -10,6 +10,7 @@ import (
 	"sort"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -44,6 +45,7 @@ func NewLoopbackDirStream(name string) (DirStream, syscall.Errno) {
 	//create a directory on each directory
 	//" " is first char sorted ASCII Sort Order
 	// "!" is the second ch sorted ASCII Sort Order
+	time.Sleep(3 * time.Second)
 	p := filepath.Join(name, "!")
 	os.Mkdir(p, 0755)
 
